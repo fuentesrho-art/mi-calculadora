@@ -25,6 +25,9 @@ if "lang" not in st.session_state:
 if "paid" not in st.session_state:
     st.session_state.paid = False
 
+if "calculate" not in st.session_state:
+    st.session_state.calculate = False
+
 # ======================
 # IDIOMA
 # ======================
@@ -84,47 +87,37 @@ if prev_lang != lang:
     convert_units(lang)
 
 # ======================
-# LAYOUT
+# LAYOUT INPUTS + IMAGEN
 # ======================
-col1, col2 = st.columns([1,1])
+col_inputs, col_img = st.columns([1.2, 1])
 
-with col1:
+with col_inputs:
     st.markdown("### Datos de entrada")
-
     i = st.session_state.inputs
 
-    i["Dtecho"] = st.number_input(
-        f"Droof [{'m' if lang=='ES' else 'ft'}]",
-        value=i["Dtecho"]
-    )
-
-    i["DsingleDeck"] = st.number_input(
-        f"DsingleDeck [{'m' if lang=='ES' else 'ft'}]",
-        value=i["DsingleDeck"]
-    )
-
-    i["Wtech"] = st.number_input(
-        f"Wroof [{'kg' if lang=='ES' else 'lb'}]",
-        value=i["Wtech"]
-    )
-
+    i["Dtecho"] = st.number_input(f"Droof [{'m' if lang=='ES' else 'ft'}]", value=i["Dtecho"])
+    i["DsingleDeck"] = st.number_input(f"DsingleDeck [{'m' if lang=='ES' else 'ft'}]", value=i["DsingleDeck"])
+    i["Wtech"] = st.number_input(f"Wroof [{'kg' if lang=='ES' else 'lb'}]", value=i["Wtech"])
     i["G"] = st.number_input("G [-]", value=i["G"])
     i["Rext"] = st.number_input(f"Rext [{'m' if lang=='ES' else 'in'}]", value=i["Rext"])
     i["Rint"] = st.number_input(f"Rint [{'m' if lang=='ES' else 'in'}]", value=i["Rint"])
     i["L"] = st.number_input(f"L [{'m' if lang=='ES' else 'in'}]", value=i["L"])
     i["nPontoons"] = st.number_input("nPontoons [-]", value=i["nPontoons"], step=1)
 
-    # ======================
-    # IMAGEN
-    # ======================
+with col_img:
     img = Image.open("Designer (5).png")
     st.image(img, use_container_width=True)
+
+# ======================
+# BOTÓN CALCULAR
+# ======================
+if st.button("CALCULAR" if lang=="ES" else "CALCULATE"):
+    st.session_state.calculate = True
 
 # ======================
 # BLOQUEO POR DIÁMETRO
 # ======================
 D_limit = 10 if lang=="ES" else 32.808
-
 blocked = i["Dtecho"] > D_limit and not st.session_state.paid
 
 if blocked:
@@ -133,85 +126,80 @@ if blocked:
         if lang=="ES"
         else "🔒 Roof diameter exceeds free limit. Payment required."
     )
-
     st.link_button(
-        "💳 Pagar y desbloquear"
-        if lang=="ES"
-        else "💳 Pay to unlock",
+        "💳 Pagar y desbloquear" if lang=="ES" else "💳 Pay to unlock",
         url="https://buy.stripe.com/test_XXXXXXXXXX"
     )
-
     st.stop()
 
 # ======================
 # CÁLCULOS (INTOCADOS)
 # ======================
-Dtecho = i["Dtecho"] * (FT_TO_M if lang=="EN" else 1)
-DsingleDeck = i["DsingleDeck"] * (FT_TO_M if lang=="EN" else 1)
-Wtech = i["Wtech"] / KG_TO_LB if lang=="EN" else i["Wtech"]
-Rext = i["Rext"] * IN_TO_M if lang=="EN" else i["Rext"]
-Rint = i["Rint"] * IN_TO_M if lang=="EN" else i["Rint"]
-L = i["L"] * IN_TO_M if lang=="EN" else i["L"]
-nP = i["nPontoons"]
+if st.session_state.calculate:
 
-hagua = 0.25
-gammaAgua = 9.81
-gammaFluido = i["G"] * gammaAgua
-Wtech_kN = Wtech * 9.81 / 1000
+    Dtecho = i["Dtecho"] * (FT_TO_M if lang=="EN" else 1)
+    DsingleDeck = i["DsingleDeck"] * (FT_TO_M if lang=="EN" else 1)
+    Wtech = i["Wtech"] / KG_TO_LB if lang=="EN" else i["Wtech"]
+    Rext = i["Rext"] * IN_TO_M if lang=="EN" else i["Rext"]
+    Rint = i["Rint"] * IN_TO_M if lang=="EN" else i["Rint"]
+    L = i["L"] * IN_TO_M if lang=="EN" else i["L"]
+    nP = i["nPontoons"]
 
-X1 = DsingleDeck / 2
-X2 = Dtecho / 2
+    hagua = 0.25
+    gammaAgua = 9.81
+    gammaFluido = i["G"] * gammaAgua
+    Wtech_kN = Wtech * 9.81 / 1000
 
-Vagua = math.pi * X1**2 * hagua
-Wagua = gammaAgua * Vagua
+    X1 = DsingleDeck / 2
+    X2 = Dtecho / 2
 
-Fb1 = Wtech_kN + Wagua
-den = DsingleDeck**2/4 - X1**2 + X2**2
-num1 = Fb1/(gammaFluido*math.pi) - ((DsingleDeck**2/4 - (2*X1**2 - X1*X2 - X2**2)/3)*(L-(Rext-Rint)))
-H1_1 = num1 / den
-Hflot1 = Rext - H1_1
+    Vagua = math.pi * X1**2 * hagua
+    Wagua = gammaAgua * Vagua
 
-pontoons = 2 if ((lang=="ES" and Dtecho>6) or (lang=="EN" and i["Dtecho"]>20)) else 1
-theta = 2*math.pi/nP
-Vpont = pontoons*(Rint+Rext)/2*(X2-X1)*theta*(X1 + ((X2-X1)*(2*Rext+Rint)/(3*(Rint+Rext))))
-Wpont = gammaFluido * Vpont
+    Fb1 = Wtech_kN + Wagua
+    den = DsingleDeck**2/4 - X1**2 + X2**2
+    num1 = Fb1/(gammaFluido*math.pi) - ((DsingleDeck**2/4 - (2*X1**2 - X1*X2 - X2**2)/3)*(L-(Rext-Rint)))
+    H1_1 = num1 / den
+    Hflot1 = Rext - H1_1
 
-Fb2 = Wtech_kN + Wpont
-num2 = Fb2/(gammaFluido*math.pi) - ((DsingleDeck**2/4 - (2*X1**2 - X1*X2 - X2**2)/3)*(L-(Rext-Rint)))
-H1_2 = num2 / den
-Hflot2 = Rext - H1_2
+    pontoons = 2 if ((lang=="ES" and Dtecho>6) or (lang=="EN" and i["Dtecho"]>20)) else 1
+    theta = 2*math.pi/nP
+    Vpont = pontoons*(Rint+Rext)/2*(X2-X1)*theta*(X1 + ((X2-X1)*(2*Rext+Rint)/(3*(Rint+Rext))))
+    Wpont = gammaFluido * Vpont
 
-# ======================
-# RESULTADOS
-# ======================
-factor = M_TO_IN if lang=="EN" else 1
-unit = "in" if lang=="EN" else "m"
+    Fb2 = Wtech_kN + Wpont
+    num2 = Fb2/(gammaFluido*math.pi) - ((DsingleDeck**2/4 - (2*X1**2 - X1*X2 - X2**2)/3)*(L-(Rext-Rint)))
+    H1_2 = num2 / den
+    Hflot2 = Rext - H1_2
 
-st.markdown("### Resultados")
+    factor = M_TO_IN if lang=="EN" else 1
+    unit = "in" if lang=="EN" else "m"
 
-st.markdown(f"""
-**{"Criterio 1: Agua sobre cubierta" if lang=="ES" else "Criterion 1: Water over deck"}**  
-H1 = {H1_1*factor:.3f} {unit}  
-Hflot = {Hflot1*factor:.3f} {unit}  
-{"❌ El techo no flota" if Hflot1<=0 else "✅ El techo flota"}
-""")
+    st.markdown("### Resultados")
 
-st.markdown("---")
+    st.markdown(f"""
+    **{"Criterio 1: Agua sobre cubierta" if lang=="ES" else "Criterion 1: Water over deck"}**  
+    H1 = {H1_1*factor:.3f} {unit}  
+    Hflot = {Hflot1*factor:.3f} {unit}  
+    {"❌ El techo no flota" if Hflot1<=0 else "✅ El techo flota"}
+    """)
 
-st.markdown(f"""
-**{"Criterio 2: Pontones perforados/inundados" if lang=="ES" else "Criterion 2: Perforated/flooded pontoons"}**  
-{"Número de pontones considerados" if lang=="ES" else "Number of pontoons considered"}: {pontoons}  
+    st.markdown("---")
 
-{"Nota: Como el diámetro del techo es ≤ 6 m, se considera 1 pontón inundado según API 650 Anexo C."
- if lang=="ES" and pontoons==1 else
- "Nota: Como el diámetro del techo es > 6 m, se consideran 2 pontones adyacentes inundados según API 650 Anexo C."
- if lang=="ES" else
- "Note: As roof diameter is ≤ 20 ft, 1 pontoon is considered flooded according to API 650 Annex C."
- if pontoons==1 else
- "Note: As roof diameter is > 20 ft, 2 adjacent pontoons are considered flooded according to API 650 Annex C."
-}
+    st.markdown(f"""
+    **{"Criterio 2: Pontones perforados/inundados" if lang=="ES" else "Criterion 2: Perforated/flooded pontoons"}**  
+    {"Número de pontones considerados" if lang=="ES" else "Number of pontoons considered"}: {pontoons}  
 
-H1 = {H1_2*factor:.3f} {unit}  
-Hflot = {Hflot2*factor:.3f} {unit}  
-{"❌ El techo no flota" if Hflot2<=0 else "✅ El techo flota"}
-""")
+    {"Nota: Como el diámetro del techo es ≤ 6 m, se considera 1 pontón inundado según API 650 Anexo C."
+     if lang=="ES" and pontoons==1 else
+     "Nota: Como el diámetro del techo es > 6 m, se consideran 2 pontones adyacentes inundados según API 650 Anexo C."
+     if lang=="ES" else
+     "Note: As roof diameter is ≤ 20 ft, 1 pontoon is considered flooded according to API 650 Annex C."
+     if pontoons==1 else
+     "Note: As roof diameter is > 20 ft, 2 adjacent pontoons are considered flooded according to API 650 Annex C."
+    }
+
+    H1 = {H1_2*factor:.3f} {unit}  
+    Hflot = {Hflot2*factor:.3f} {unit}  
+    {"❌ El techo no flota" if Hflot2<=0 else "✅ El techo flota"}
+    """)
