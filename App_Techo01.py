@@ -7,6 +7,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 from PIL import Image
 import os
 
@@ -33,7 +34,7 @@ ASSEMBLY_CAPACITY = {
 
 st.set_page_config(page_title="Tank Roof Calculator", page_icon="⚓", layout="wide")
 
-# Estilos CSS
+# Estilos CSS mejorados
 st.markdown("""
     <style>
     .main-header {
@@ -42,6 +43,13 @@ st.markdown("""
         border-radius: 10px;
         color: white;
         text-align: center;
+        margin-bottom: 20px;
+    }
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         margin-bottom: 20px;
     }
     .result-box {
@@ -66,6 +74,14 @@ st.markdown("""
         font-weight: 600;
         color: #2980b9;
     }
+    .badge {
+        background: #3498db;
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.8em;
+        display: inline-block;
+    }
     .pass {
         background: #d4edda;
         color: #155724;
@@ -73,6 +89,7 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         font-weight: bold;
+        font-size: 1.2em;
     }
     .fail {
         background: #f8d7da;
@@ -81,6 +98,14 @@ st.markdown("""
         border-radius: 8px;
         text-align: center;
         font-weight: bold;
+        font-size: 1.2em;
+    }
+    .special-note {
+        background: #e7f5ff;
+        border-left: 4px solid #0369a1;
+        padding: 10px 15px;
+        border-radius: 4px;
+        margin-bottom: 15px;
     }
     .stButton > button {
         background: linear-gradient(90deg, #3498db, #2980b9);
@@ -91,6 +116,13 @@ st.markdown("""
         border: none;
         border-radius: 5px;
         width: 100%;
+    }
+    .metric-container {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e0e7ef;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -171,6 +203,16 @@ def calculate_all(inputs):
     final_pontoons = max(user_pontoons, min_required_pontoons)
     final_compartments = area_compartment * t_compartment_m * RHO * final_pontoons
     final_pontoon_weight = w_pontoon_base + final_compartments
+    final_pontoon_weight_kN = (final_pontoon_weight * GRAVITY) / 1000
+    
+    numerator_final = 1.2 * final_pontoon_weight_kN + 1.6 * (CV * area_ring)
+    columns_needed = int(np.ceil(numerator_final / assembly_capacity_kN))
+    final_columns = max(final_pontoons, columns_needed)
+    
+    if final_columns > final_pontoons:
+        final_pontoons = final_columns
+        final_compartments = area_compartment * t_compartment_m * RHO * final_pontoons
+        final_pontoon_weight = w_pontoon_base + final_compartments
     
     w_deck_kN = (w_deck * GRAVITY) / 1000
     numerator_deck = 1.2 * w_deck_kN + 1.6 * (CV * area_deck)
@@ -217,14 +259,28 @@ def calculate_all(inputs):
     passes_c2 = Hflot_c2 > 0.01
     
     if user_pontoons < min_required_pontoons:
-        source = f"⚠️ Usando mínimo: {final_pontoons} (usuario puso {user_pontoons})"
+        source_message = f"⚠️ User input ({user_pontoons}) < minimum required ({min_required_pontoons}) - using minimum: {final_pontoons}"
+    elif user_pontoons > min_required_pontoons:
+        source_message = f"✓ User input ({user_pontoons}) > minimum required ({min_required_pontoons}) - using user value: {final_pontoons}"
     else:
-        source = f"✓ Usando: {final_pontoons}"
+        source_message = f"✓ User input matches minimum required: {final_pontoons}"
     
     results = {
         'tank_tag': inputs['tank_tag'],
         'project': inputs['project'],
         'client': inputs['client'],
+        'droof': droof,
+        'ddeck': ddeck,
+        'user_pontoons': user_pontoons,
+        'router': router,
+        'rinner': rinner,
+        'l': l,
+        't_ring_top': inputs['t_ring_top'],
+        't_ring_bottom': inputs['t_ring_bottom'],
+        't_rext': inputs['t_rext'],
+        't_rint': inputs['t_rint'],
+        't_compartment': inputs['t_compartment'],
+        't_single_deck': inputs['t_single_deck'],
         'w_roof_kg': w_roof_kg,
         'w_roof_kN': w_roof_kN,
         'w_ring_top': w_ring_top,
@@ -240,72 +296,77 @@ def calculate_all(inputs):
         'assembly_capacity': assembly_capacity,
         'assembly_capacity_kN': assembly_capacity_kN,
         'w_unit': w_unit,
+        'linear_col': linear_col,
+        'linear_sleeve': linear_sleeve,
         'min_required_pontoons': min_required_pontoons,
+        'iterations': iterations,
         'Hflot_c1': Hflot_c1,
         'Hflot_c2': Hflot_c2,
         'Wwater': Wwater,
+        'Fb1': Fb1,
+        'H1_c1': H1_c1,
+        'Fb2': Fb2,
+        'H1_c2': H1_c2,
         'Vpontoons_flooded': Vpontoons_flooded,
+        'Wpontoons_flooded': Wpontoons_flooded,
         'passes_c1': passes_c1,
         'passes_c2': passes_c2,
         'is_small_diameter': is_small_diameter,
+        'source_message': source_message,
         'num_flooded': num_flooded,
         'X1': X1,
         'X2': X2,
-        'source': source,
-        't_ring_top': inputs['t_ring_top'],
-        't_ring_bottom': inputs['t_ring_bottom'],
-        't_rext': inputs['t_rext'],
-        't_rint': inputs['t_rint'],
-        't_compartment': inputs['t_compartment'],
-        't_single_deck': inputs['t_single_deck'],
-        'column_length': column_length,
-        'sleeve_length': sleeve_length,
-        'linear_col': linear_col,
-        'linear_sleeve': linear_sleeve,
-        'router': router,
-        'rinner': rinner,
-        'l': l,
-        'droof': droof,
-        'ddeck': ddeck,
+        'area_ring': area_ring,
+        'area_deck': area_deck,
+        'area_compartment': area_compartment,
         'g': g,
-        'iterations': iterations
+        'column_length': column_length,
+        'sleeve_length': sleeve_length
     }
     return results, None
 
 def export_to_excel(results):
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # MTO
-        df = pd.DataFrame({
-            'Item': ['1', '2', '3', '4', '5', '6', '7'],
-            'Description': [
-                f"Ring Top ({results['t_ring_top']} mm)",
-                f"Ring Bottom ({results['t_ring_bottom']} mm)",
-                f"Outer Rim ({results['t_rext']} mm)",
-                f"Inner Rim ({results['t_rint']} mm)",
-                f"Compartments ({results['final_pontoons']} units)",
-                "Deck Plate",
-                f"Columns ({results['final_pontoons'] + results['n_columns_deck']} units)"
-            ],
-            'Weight (kg)': [
-                round(results['w_ring_top']),
-                round(results['w_ring_bottom']),
-                round(results['w_rext']),
-                round(results['w_rint']),
-                round(results['final_compartments']),
-                round(results['w_deck']),
-                round(results['w_columns_pontoon'] + results['w_columns_deck'])
-            ]
-        })
-        df.to_excel(writer, sheet_name='MTO', index=False)
+        total_plates_6mm = round(results['w_ring_top'] + results['w_ring_bottom'])
+        total_plates_5mm = round(results['w_rext'] + results['w_rint'] + results['final_compartments'] + results['w_deck'])
+        total_plates = total_plates_6mm + total_plates_5mm
         
-        # Resumen
-        summary = pd.DataFrame({
-            'Description': ['TOTAL ROOF WEIGHT'],
-            'kg': [round(results['w_roof_kg'])],
-            'kN': [round(results['w_roof_kN'], 1)]
-        })
-        summary.to_excel(writer, sheet_name='Summary', index=False)
+        total_cols = round((results['final_pontoons'] + results['n_columns_deck']) * results['linear_col'] * results['column_length'])
+        total_sleeves = round((results['final_pontoons'] + results['n_columns_deck']) * results['linear_sleeve'] * results['sleeve_length'])
+        total_pipes = total_cols + total_sleeves
+        
+        mto_data = [
+            ["MATERIAL TAKE-OFF (MTO)"],
+            [],
+            [f"Tank Tag: {results['tank_tag']}", f"Project: {results['project']}", f"Client: {results['client']}"],
+            [],
+            ["PLATES"],
+            ["Item", "Description", "Thickness (mm)", "Weight (kg)"],
+            [1, f"Carbon steel plate, {results['t_ring_top']} mm thick", results['t_ring_top'], total_plates_6mm],
+            [2, f"Carbon steel plate, {results['t_rext']} mm thick", results['t_rext'], total_plates_5mm],
+            [3, "", "", ""],
+            [4, "", "", ""],
+            ["", "", "TOTAL PLATES", total_plates],
+            [],
+            ["PIPES (COLUMNS)"],
+            ["Item", "Description", "Qty", "Unit Weight (kg)", "Total Weight (kg)"],
+            [5, f'Pipe NPS 2", Sch 80, Carbon steel ({results["column_length"]} m)', results['final_pontoons'] + results['n_columns_deck'], round(results['linear_col'] * results['column_length'], 2), total_cols],
+            [6, f'Pipe NPS 3", Sch 40, Carbon steel ({results["sleeve_length"]} m)', results['final_pontoons'] + results['n_columns_deck'], round(results['linear_sleeve'] * results['sleeve_length'], 2), total_sleeves],
+            [7, "", "", "", ""],
+            [8, "", "", "", ""],
+            ["", "", "", "TOTAL PIPES", total_pipes],
+            [],
+            ["GRAND TOTAL"],
+            ["Total Plates", total_plates],
+            ["Total Pipes", total_pipes],
+            ["TOTAL ROOF WEIGHT (kg)", total_plates + total_pipes],
+            [],
+            [f"Date: {datetime.now().strftime('%Y-%m-%d')}"]
+        ]
+        
+        df_mto = pd.DataFrame(mto_data)
+        df_mto.to_excel(writer, sheet_name='MTO', index=False, header=False)
     
     st.download_button(
         "📥 Export MTO to Excel",
@@ -315,62 +376,163 @@ def export_to_excel(results):
 
 def export_to_pdf(results):
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
     styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor=colors.HexColor('#2c3e50'),
+        alignment=1,
+        spaceAfter=20
+    )
+    
     elements = []
     
     # Título
-    elements.append(Paragraph("STORAGE TANK ROOF FLOTATION REPORT", styles['Title']))
-    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("STORAGE TANK ROOF FLOTATION CALCULATION REPORT", title_style))
     
     # Información del proyecto
     data = [
-        [f"Tank: {results['tank_tag']}", f"Project: {results['project']}", f"Client: {results['client']}"],
+        [f"Tank Tag: {results['tank_tag']}", f"Project: {results['project']}", f"Client: {results['client']}"],
         [f"Date: {datetime.now().strftime('%Y-%m-%d')}", "", ""]
     ]
     table = Table(data, colWidths=[180, 180, 180])
-    table.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 1, colors.grey)]))
-    elements.append(table)
-    elements.append(Spacer(1, 12))
-    
-    # Peso total
-    elements.append(Paragraph(f"TOTAL ROOF WEIGHT: {results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)", styles['Heading2']))
-    elements.append(Spacer(1, 12))
-    
-    # Weight Breakdown
-    data = [['Component', 'Weight (kg)']]
-    data.append(['Ring Top', f"{results['w_ring_top']:,.1f}"])
-    data.append(['Ring Bottom', f"{results['w_ring_bottom']:,.1f}"])
-    data.append(['Outer Rim', f"{results['w_rext']:,.1f}"])
-    data.append(['Inner Rim', f"{results['w_rint']:,.1f}"])
-    data.append(['Compartments', f"{results['final_compartments']:,.1f}"])
-    data.append(['Deck', f"{results['w_deck']:,.1f}"])
-    data.append(['Columns', f"{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f}"])
-    
-    table = Table(data)
     table.setStyle(TableStyle([
-        ('GRID', (0,0), (-1,-1), 1, colors.grey),
-        ('BACKGROUND', (0,0), (-1,0), colors.grey),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke)
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f0f0f0')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dddddd'))
     ]))
     elements.append(table)
     elements.append(Spacer(1, 12))
     
-    # Column Summary
-    elements.append(Paragraph(f"Columns: {results['final_pontoons']} pont + {results['n_columns_deck']} deck", styles['Normal']))
-    elements.append(Paragraph(f"Assembly Capacity: {results['assembly_capacity']} kg", styles['Normal']))
+    # Total roof weight
+    elements.append(Paragraph(f"🏗️ TOTAL ROOF WEIGHT: {results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)", 
+                              ParagraphStyle('Total', parent=styles['Heading2'], textColor=colors.HexColor('#2980b9'))))
     elements.append(Spacer(1, 12))
     
-    # Flotation
-    elements.append(Paragraph(f"Criterion 1 Freeboard: {results['Hflot_c1']:.3f} m", styles['Normal']))
-    elements.append(Paragraph(f"Criterion 2 Freeboard: {results['Hflot_c2']:.3f} m", styles['Normal']))
+    # Weight Breakdown
+    elements.append(Paragraph("⚙️ Weight Breakdown", styles['Heading2']))
+    weight_data = [
+        ["Component", "Weight (kg)"],
+        [f"WRingTop ({results['t_ring_top']} mm)", f"{results['w_ring_top']:,.1f}"],
+        [f"WRingBottom ({results['t_ring_bottom']} mm)", f"{results['w_ring_bottom']:,.1f}"],
+        [f"WRext ({results['t_rext']} mm)", f"{results['w_rext']:,.1f}"],
+        [f"WRint ({results['t_rint']} mm)", f"{results['w_rint']:,.1f}"],
+        [f"WCompartment ({results['final_pontoons']} units)", f"{results['final_compartments']:,.1f}"],
+        [f"WDeck ({results['t_single_deck']} mm)", f"{results['w_deck']:,.1f}"],
+        [f"WColumns ({results['final_pontoons']} pont + {results['n_columns_deck']} deck)", f"{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f}"],
+        ["", ""],
+        ["TOTAL Wroof:", f"{results['w_roof_kg']:,.1f} kg"]
+    ]
+    table = Table(weight_data, colWidths=[300, 150])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('ALIGN', (1, 1), (1, -1), 'RIGHT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -2), 1, colors.HexColor('#eeeeee')),
+        ('BACKGROUND', (-2, -1), (-1, -1), colors.HexColor('#f0f0f0')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(table)
     elements.append(Spacer(1, 12))
     
-    # Verdict
+    # Column & Pontoon Summary
+    elements.append(Paragraph("📊 Column & Pontoon Summary", styles['Heading2']))
+    col_data = [
+        ["Parameter", "Value"],
+        ["Columns in Pontoons", str(results['final_pontoons'])],
+        ["Number of Pontoons", str(results['final_pontoons'])],
+        ["Columns in Deck", str(results['n_columns_deck'])],
+        ["Unit Weight per Column", f"{results['w_unit']:.1f} kg"],
+        ["Minimum Required", str(results['min_required_pontoons'])],
+        ["Assembly Capacity", f"{results['assembly_capacity']} kg ({results['assembly_capacity_kN']:.1f} kN)"],
+        ["Status", results['source_message']]
+    ]
+    table = Table(col_data, colWidths=[250, 200])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#eeeeee')),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 12))
+    
+    if results['is_small_diameter']:
+        elements.append(Paragraph("⚠️ Since roof diameter is ≤ 6 m, API 650 Annex C requires considering 1 flooded compartment instead of 2.",
+                                  ParagraphStyle('Note', parent=styles['Italic'], textColor=colors.HexColor('#e67e22'))))
+        elements.append(Spacer(1, 12))
+    
+    # Criterion 1
+    elements.append(Paragraph("💧 CRITERION 1: Roof + Water", styles['Heading2']))
+    crit1_data = [
+        ["Parameter", "Value"],
+        ["Water weight on deck", f"{results['Wwater']:.2f} kN"],
+        ["Required buoyancy force", f"{results['Fb1']:.2f} kN"],
+        ["Submerged depth H₁", f"{results['H1_c1']:.3f} m"],
+        ["Flotation height (freeboard)", f"{results['Hflot_c1']:.3f} m"]
+    ]
+    table = Table(crit1_data, colWidths=[250, 200])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#eeeeee')),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 12))
+    
+    # Criterion 2
+    elements.append(Paragraph(f"⚠️ CRITERION 2: Roof + {results['num_flooded']} adjacent pontoon{'s' if results['num_flooded'] > 1 else ''} flooded", styles['Heading2']))
+    crit2_data = [
+        ["Parameter", "Value"],
+        [f"Volume of {results['num_flooded']} pontoon{'s' if results['num_flooded'] > 1 else ''}", f"{results['Vpontoons_flooded']:.2f} m³"],
+        ["Fluid weight", f"{results['Wpontoons_flooded']:.2f} kN"],
+        ["Required buoyancy force", f"{results['Fb2']:.2f} kN"],
+        ["Submerged depth H₁", f"{results['H1_c2']:.3f} m"],
+        ["Flotation height (freeboard)", f"{results['Hflot_c2']:.3f} m"]
+    ]
+    table = Table(crit2_data, colWidths=[250, 200])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#3498db')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#eeeeee')),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 12))
+    
+    # Conclusion
     if results['passes_c1'] and results['passes_c2']:
-        elements.append(Paragraph("✅ FLOTATION REQUIREMENTS SATISFIED", styles['Heading3']))
+        elements.append(Paragraph("✅ ROOF FLOTATION REQUIREMENTS SATISFIED",
+                                  ParagraphStyle('Pass', parent=styles['Heading3'], textColor=colors.HexColor('#27ae60'), alignment=1)))
     else:
-        elements.append(Paragraph("❌ FLOTATION REQUIREMENTS NOT SATISFIED", styles['Heading3']))
+        elements.append(Paragraph("❌ ROOF DOES NOT MEET FLOTATION REQUIREMENTS",
+                                  ParagraphStyle('Fail', parent=styles['Heading3'], textColor=colors.HexColor('#e74c3c'), alignment=1)))
+    elements.append(Spacer(1, 12))
+    
+    # Geometry note
+    elements.append(Paragraph(f"Geometry: X₁ = {results['X1']:.3f} m | X₂ = {results['X2']:.3f} m | Compartments = {results['final_pontoons']} | θ for {results['num_flooded']} comp = {((results['num_flooded'] * 360) / results['final_pontoons']):.1f}°",
+                              ParagraphStyle('Geo', parent=styles['Italic'], fontSize=8)))
     
     doc.build(elements)
     buffer.seek(0)
@@ -384,7 +546,6 @@ def export_to_pdf(results):
 def main():
     st.markdown('<div class="main-header"><h1>⚓ STORAGE TANK ROOF FLOTATION CALCULATOR</h1></div>', unsafe_allow_html=True)
     
-    # Crear el formulario para evitar errores de submit
     with st.form("input_form"):
         col1, col2 = st.columns([1.2, 1])
         
@@ -395,11 +556,8 @@ def main():
                 client = st.text_input("Client", "Oil & Gas Corp")
             
             with st.expander("📐 Geometry", expanded=True):
-                # Verificar si existe la imagen
                 if os.path.exists("Designer (5).png"):
                     st.image("Designer (5).png", caption="Tank Geometry")
-                else:
-                    st.info("📐 Geometry diagram - Imagen no encontrada")
                 
                 droof = st.number_input("Roof diameter (Droof) - m", value=52.0, step=0.1, format="%.2f")
                 ddeck = st.number_input("Deck diameter (Ddeck) - m", value=47.0, step=0.1, format="%.2f")
@@ -411,8 +569,6 @@ def main():
             with st.expander("⚖️ Weights", expanded=True):
                 if os.path.exists("Roof_Weight.jpeg"):
                     st.image("Roof_Weight.jpeg", caption="Roof Weight")
-                else:
-                    st.info("⚖️ Roof weight diagram - Imagen no encontrada")
                 
                 col_t1, col_t2 = st.columns(2)
                 with col_t1:
@@ -433,8 +589,6 @@ def main():
             with st.expander("🔧 Columns", expanded=True):
                 if os.path.exists("Column.jpeg"):
                     st.image("Column.jpeg", caption="Column")
-                else:
-                    st.info("🔧 Column diagram - Imagen no encontrada")
                 
                 column_type = st.selectbox("Column Type", ['2x3', '3x4'])
                 column_length = st.number_input("Column Length (m)", value=2.5, step=0.1, format="%.1f")
@@ -442,13 +596,20 @@ def main():
             
             with st.expander("💧 Fluid", expanded=True):
                 g = st.number_input("Relative density G (max 0.7)", value=0.7, min_value=0.0, max_value=0.7, step=0.01, format="%.2f")
+            
+            st.markdown("""
+                <div style="background:#eef2f7; border-radius:6px; padding:15px; margin-top:15px">
+                    <p style="margin:0; color:#27ae60; font-weight:500">🔒 FIXED VALUES:</p>
+                    <p style="margin:5px 0">Water height on deck: <strong>0.25 m</strong></p>
+                    <p style="margin:5px 0">Specific weight of water: <strong>9.81 kN/m³</strong></p>
+                </div>
+            """, unsafe_allow_html=True)
         
         with col2:
-            st.markdown("### 📊 RESULTS")
-            # Botón de submit del formulario
+            st.markdown("### 📊 LIVE RESULTS")
+            st.caption("All values update automatically")
             submitted = st.form_submit_button("📊 CALCULATE", use_container_width=True)
     
-    # Procesar fuera del formulario
     if submitted:
         inputs = {
             'tank_tag': tank_tag, 'project': project, 'client': client,
@@ -469,49 +630,111 @@ def main():
         else:
             st.markdown(f"""
                 <div style="background:#edf2f7; padding:15px; border-radius:8px; margin-bottom:15px">
-                    <h3 style="margin:0">🏗️ TOTAL WEIGHT</h3>
-                    <h2 style="color:#2980b9; margin:0">{results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)</h2>
+                    <span style="font-size:1.2em; font-weight:bold">🏗️ TOTAL ROOF WEIGHT</span>
+                    <div style="display:flex; justify-content:space-between; margin-top:8px">
+                        <span>Wroof =</span>
+                        <span style="font-weight:bold; color:#2980b9">{results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)</span>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
             
             with st.expander("⚙️ Weight Breakdown", expanded=True):
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WRingTop:</span> <span class='result-value'>{results['w_ring_top']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WRingBottom:</span> <span class='result-value'>{results['w_ring_bottom']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WRext:</span> <span class='result-value'>{results['w_rext']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WRint:</span> <span class='result-value'>{results['w_rint']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                with col_b2:
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WCompartment ({results['final_pontoons']}):</span> <span class='result-value'>{results['final_compartments']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WDeck:</span> <span class='result-value'>{results['w_deck']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='result-item'><span class='result-label'>WColumns:</span> <span class='result-value'>{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f} kg</span></div>", unsafe_allow_html=True)
+                
                 st.markdown(f"""
-                    <div class="result-item"><span class="result-label">WRingTop:</span> <span class="result-value">{results['w_ring_top']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WRingBottom:</span> <span class="result-value">{results['w_ring_bottom']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WRext:</span> <span class="result-value">{results['w_rext']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WRint:</span> <span class="result-value">{results['w_rint']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WCompartment ({results['final_pontoons']}):</span> <span class="result-value">{results['final_compartments']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WDeck:</span> <span class="result-value">{results['w_deck']:,.1f} kg</span></div>
-                    <div class="result-item"><span class="result-label">WColumns:</span> <span class="result-value">{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f} kg</span></div>
+                    <div class='result-item' style='border-top:2px solid #3498db; margin-top:5px; padding-top:8px'>
+                        <span class='result-label'>TOTAL Wroof:</span>
+                        <span class='result-value' style='font-size:1.1em'>{results['w_roof_kg']:,.1f} kg</span>
+                    </div>
                 """, unsafe_allow_html=True)
             
             st.markdown(f"""
                 <div class="result-box">
-                    <h4>📊 Columns: {results['final_pontoons']} pont + {results['n_columns_deck']} deck</h4>
-                    <h4>⚡ Assembly cap: {results['assembly_capacity']} kg ({results['assembly_capacity_kN']:.1f} kN)</h4>
-                    <h4>📌 {results['source']}</h4>
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px">
+                        <h3 style="margin:0">📊 Column & Pontoon Summary</h3>
+                        <span class="badge">Assembly cap: {results['assembly_capacity']} kg ({results['assembly_capacity_kN']:.1f} kN)</span>
+                    </div>
+                    <div class="result-item"><span class="result-label">Columns in Pontoons:</span> <span class="result-value">{results['final_pontoons']}</span></div>
+                    <div class="result-item"><span class="result-label">Number of Pontoons:</span> <span class="result-value">{results['final_pontoons']}</span></div>
+                    <div class="result-item"><span class="result-label">Columns in Deck:</span> <span class="result-value">{results['n_columns_deck']}</span></div>
+                    <div class="result-item"><span class="result-label">Unit Weight per Column:</span> <span class="result-value">{results['w_unit']:.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">Minimum Required:</span> <span class="result-value">{results['min_required_pontoons']}</span></div>
+                    <div class="result-item"><span class="result-label">Iterations:</span> <span class="result-value">{results['iterations']}</span></div>
+                    <div class="result-item" style="border-top:1px dashed #3498db; margin-top:5px; padding-top:8px; color:#e67e22">
+                        <span class="result-label">Status:</span>
+                        <span class="result-value">{results['source_message']}</span>
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
             
             if results['is_small_diameter']:
-                st.info("⚠️ Droof ≤ 6m: Usando 1 compartimento inundado")
+                st.markdown("""
+                    <div class="special-note">
+                        ⚠️ Since roof diameter is ≤ 6 m, API 650 Annex C requires considering <strong>1 flooded compartment</strong> instead of 2.
+                    </div>
+                """, unsafe_allow_html=True)
             
             col_c1, col_c2 = st.columns(2)
             with col_c1:
-                st.metric("Criterion 1 Freeboard", f"{results['Hflot_c1']:.3f} m")
+                st.markdown(f"""
+                    <div class="result-box">
+                        <h3 style="margin-top:0">💧 CRITERION 1: Roof + Water</h3>
+                        <div class="result-item"><span class="result-label">Water weight:</span> <span class="result-value">{results['Wwater']:.2f} kN</span></div>
+                        <div class="result-item"><span class="result-label">Buoyancy force:</span> <span class="result-value">{results['Fb1']:.2f} kN</span></div>
+                        <div class="result-item"><span class="result-label">Submerged depth H₁:</span> <span class="result-value">{results['H1_c1']:.3f} m</span></div>
+                        <div class="result-item" style="font-weight:bold">
+                            <span class="result-label">Freeboard:</span>
+                            <span class="result-value" style="color:{'#27ae60' if results['Hflot_c1'] > 0 else '#e74c3c'}">{results['Hflot_c1']:.3f} m</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
             with col_c2:
-                st.metric("Criterion 2 Freeboard", f"{results['Hflot_c2']:.3f} m")
+                st.markdown(f"""
+                    <div class="result-box">
+                        <h3 style="margin-top:0">⚠️ CRITERION 2: Roof + {results['num_flooded']} adjacent pontoon{'s' if results['num_flooded'] > 1 else ''} flooded</h3>
+                        <div class="result-item"><span class="result-label">Volume flooded:</span> <span class="result-value">{results['Vpontoons_flooded']:.2f} m³</span></div>
+                        <div class="result-item"><span class="result-label">Fluid weight:</span> <span class="result-value">{results['Wpontoons_flooded']:.2f} kN</span></div>
+                        <div class="result-item"><span class="result-label">Buoyancy force:</span> <span class="result-value">{results['Fb2']:.2f} kN</span></div>
+                        <div class="result-item"><span class="result-label">Submerged depth H₁:</span> <span class="result-value">{results['H1_c2']:.3f} m</span></div>
+                        <div class="result-item" style="font-weight:bold">
+                            <span class="result-label">Freeboard:</span>
+                            <span class="result-value" style="color:{'#27ae60' if results['Hflot_c2'] > 0 else '#e74c3c'}">{results['Hflot_c2']:.3f} m</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
             
             if results['passes_c1'] and results['passes_c2']:
-                st.markdown('<div class="pass">✅ FLOTATION REQUIREMENTS SATISFIED</div>', unsafe_allow_html=True)
+                st.markdown('<div class="pass">✅ ROOF FLOTATION REQUIREMENTS SATISFIED</div>', unsafe_allow_html=True)
             else:
-                st.markdown('<div class="fail">❌ FLOTATION REQUIREMENTS NOT SATISFIED</div>', unsafe_allow_html=True)
+                st.markdown('<div class="fail">❌ ROOF DOES NOT MEET FLOTATION REQUIREMENTS</div>', unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <div style="background:#eef2f7; border-radius:6px; padding:10px; margin-top:15px; font-family:monospace; font-size:0.9em">
+                    Geometry: X₁ = {results['X1']:.3f} m | X₂ = {results['X2']:.3f} m | Compartments = {results['final_pontoons']} | θ for {results['num_flooded']} comp = {((results['num_flooded'] * 360) / results['final_pontoons']):.1f}°
+                </div>
+            """, unsafe_allow_html=True)
             
             col_e1, col_e2 = st.columns(2)
             with col_e1:
                 export_to_excel(results)
             with col_e2:
                 export_to_pdf(results)
+    
+    st.markdown("""
+        <div style="text-align:center; margin-top:30px; padding-top:15px; border-top:1px solid #dee2e6; color:#6c757d; font-size:0.9em">
+            ⚡ Based on API 650 • CV = 1.2 kN/m² • ρ = 7850 kg/m³ • G max = 0.7 • CORRECTED UNITS
+        </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
