@@ -8,6 +8,7 @@ from reportlab.lib.pagesizes import letter, A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from PIL import Image
+import os
 
 # Constantes fijas
 RHO = 7850  # kg/m³
@@ -383,63 +384,72 @@ def export_to_pdf(results):
 def main():
     st.markdown('<div class="main-header"><h1>⚓ STORAGE TANK ROOF FLOTATION CALCULATOR</h1></div>', unsafe_allow_html=True)
     
-    col1, col2 = st.columns([1.2, 1])
+    # Crear el formulario para evitar errores de submit
+    with st.form("input_form"):
+        col1, col2 = st.columns([1.2, 1])
+        
+        with col1:
+            with st.expander("📋 Project Information", expanded=True):
+                tank_tag = st.text_input("Tank Tag", "TK-101")
+                project = st.text_input("Project", "Refinery Expansion")
+                client = st.text_input("Client", "Oil & Gas Corp")
+            
+            with st.expander("📐 Geometry", expanded=True):
+                # Verificar si existe la imagen
+                if os.path.exists("Designer (5).png"):
+                    st.image("Designer (5).png", caption="Tank Geometry")
+                else:
+                    st.info("📐 Geometry diagram - Imagen no encontrada")
+                
+                droof = st.number_input("Roof diameter (Droof) - m", value=52.0, step=0.1, format="%.2f")
+                ddeck = st.number_input("Deck diameter (Ddeck) - m", value=47.0, step=0.1, format="%.2f")
+                num_pontoons = st.number_input("Number of Pontoons", value=12, min_value=4, step=1)
+                router = st.number_input("Outer height (Router) - m", value=0.90, step=0.01, format="%.2f")
+                rinner = st.number_input("Inner height (Rinner) - m", value=0.40, step=0.01, format="%.2f")
+                l = st.number_input("Inclined side (L) - m", value=0.25, step=0.01, format="%.2f")
+            
+            with st.expander("⚖️ Weights", expanded=True):
+                if os.path.exists("Roof_Weight.jpeg"):
+                    st.image("Roof_Weight.jpeg", caption="Roof Weight")
+                else:
+                    st.info("⚖️ Roof weight diagram - Imagen no encontrada")
+                
+                col_t1, col_t2 = st.columns(2)
+                with col_t1:
+                    t_ring_top = st.number_input("t_RingTop (mm)", value=6.0, step=0.1, format="%.1f")
+                    t_ring_bottom = st.number_input("t_RingBottom (mm)", value=6.0, step=0.1, format="%.1f")
+                    t_rext = st.number_input("t_Rext (mm)", value=5.0, step=0.1, format="%.1f")
+                    t_rint = st.number_input("t_Rint (mm)", value=5.0, step=0.1, format="%.1f")
+                with col_t2:
+                    t_compartment = st.number_input("t_Compartment (mm)", value=5.0, step=0.1, format="%.1f")
+                    t_single_deck = st.number_input("t_SingleDeck (mm)", value=5.0, step=0.1, format="%.1f")
+                
+                col_w1, col_w2 = st.columns(2)
+                with col_w1:
+                    wothers_pontoon = st.number_input("Wothers pontoon (kg)", value=0, step=1)
+                with col_w2:
+                    wothers_deck = st.number_input("Wothers deck (kg)", value=0, step=1)
+            
+            with st.expander("🔧 Columns", expanded=True):
+                if os.path.exists("Column.jpeg"):
+                    st.image("Column.jpeg", caption="Column")
+                else:
+                    st.info("🔧 Column diagram - Imagen no encontrada")
+                
+                column_type = st.selectbox("Column Type", ['2x3', '3x4'])
+                column_length = st.number_input("Column Length (m)", value=2.5, step=0.1, format="%.1f")
+                sleeve_length = st.number_input("Sleeve Length (m)", value=1.5, step=0.1, format="%.1f")
+            
+            with st.expander("💧 Fluid", expanded=True):
+                g = st.number_input("Relative density G (max 0.7)", value=0.7, min_value=0.0, max_value=0.7, step=0.01, format="%.2f")
+        
+        with col2:
+            st.markdown("### 📊 RESULTS")
+            # Botón de submit del formulario
+            submitted = st.form_submit_button("📊 CALCULATE", use_container_width=True)
     
-    with col1:
-        with st.expander("📋 Project Information", expanded=True):
-            tank_tag = st.text_input("Tank Tag", "TK-101")
-            project = st.text_input("Project", "Refinery Expansion")
-            client = st.text_input("Client", "Oil & Gas Corp")
-        
-        with st.expander("📐 Geometry", expanded=True):
-            try:
-                st.image("Designer (5).png", caption="Tank Geometry")
-            except:
-                st.info("Geometry diagram")
-            
-            droof = st.number_input("Roof diameter (Droof) - m", 52.0, step=0.1)
-            ddeck = st.number_input("Deck diameter (Ddeck) - m", 47.0, step=0.1)
-            num_pontoons = st.number_input("Number of Pontoons", 12, 4)
-            router = st.number_input("Outer height (Router) - m", 0.90, step=0.01)
-            rinner = st.number_input("Inner height (Rinner) - m", 0.40, step=0.01)
-            l = st.number_input("Inclined side (L) - m", 0.25, step=0.01)
-        
-        with st.expander("⚖️ Weights", expanded=True):
-            try:
-                st.image("Roof_Weight.jpeg", caption="Roof Weight")
-            except:
-                pass
-            
-            col_t1, col_t2 = st.columns(2)
-            with col_t1:
-                t_ring_top = st.number_input("t_RingTop (mm)", 6.0, step=0.1)
-                t_ring_bottom = st.number_input("t_RingBottom (mm)", 6.0, step=0.1)
-                t_rext = st.number_input("t_Rext (mm)", 5.0, step=0.1)
-                t_rint = st.number_input("t_Rint (mm)", 5.0, step=0.1)
-            with col_t2:
-                t_compartment = st.number_input("t_Compartment (mm)", 5.0, step=0.1)
-                t_single_deck = st.number_input("t_SingleDeck (mm)", 5.0, step=0.1)
-            
-            col_w1, col_w2 = st.columns(2)
-            with col_w1:
-                wothers_pontoon = st.number_input("Wothers pontoon (kg)", 0)
-            with col_w2:
-                wothers_deck = st.number_input("Wothers deck (kg)", 0)
-        
-        with st.expander("🔧 Columns", expanded=True):
-            try:
-                st.image("Column.jpeg", caption="Column")
-            except:
-                pass
-            
-            column_type = st.selectbox("Column Type", ['2x3', '3x4'])
-            column_length = st.number_input("Column Length (m)", 2.5, step=0.1)
-            sleeve_length = st.number_input("Sleeve Length (m)", 1.5, step=0.1)
-        
-        with st.expander("💧 Fluid", expanded=True):
-            g = st.number_input("Relative density G (max 0.7)", 0.7, 0.0, 0.7, 0.01)
-    
-    with col2:
+    # Procesar fuera del formulario
+    if submitted:
         inputs = {
             'tank_tag': tank_tag, 'project': project, 'client': client,
             'droof': droof, 'ddeck': ddeck, 'num_pontoons': num_pontoons,
@@ -452,57 +462,56 @@ def main():
             'sleeve_length': sleeve_length, 'g': g
         }
         
-        if st.button("📊 CALCULATE", use_container_width=True):
-            results, error = calculate_all(inputs)
+        results, error = calculate_all(inputs)
+        
+        if error:
+            st.error(error)
+        else:
+            st.markdown(f"""
+                <div style="background:#edf2f7; padding:15px; border-radius:8px; margin-bottom:15px">
+                    <h3 style="margin:0">🏗️ TOTAL WEIGHT</h3>
+                    <h2 style="color:#2980b9; margin:0">{results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)</h2>
+                </div>
+            """, unsafe_allow_html=True)
             
-            if error:
-                st.error(error)
+            with st.expander("⚙️ Weight Breakdown", expanded=True):
+                st.markdown(f"""
+                    <div class="result-item"><span class="result-label">WRingTop:</span> <span class="result-value">{results['w_ring_top']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WRingBottom:</span> <span class="result-value">{results['w_ring_bottom']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WRext:</span> <span class="result-value">{results['w_rext']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WRint:</span> <span class="result-value">{results['w_rint']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WCompartment ({results['final_pontoons']}):</span> <span class="result-value">{results['final_compartments']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WDeck:</span> <span class="result-value">{results['w_deck']:,.1f} kg</span></div>
+                    <div class="result-item"><span class="result-label">WColumns:</span> <span class="result-value">{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f} kg</span></div>
+                """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+                <div class="result-box">
+                    <h4>📊 Columns: {results['final_pontoons']} pont + {results['n_columns_deck']} deck</h4>
+                    <h4>⚡ Assembly cap: {results['assembly_capacity']} kg ({results['assembly_capacity_kN']:.1f} kN)</h4>
+                    <h4>📌 {results['source']}</h4>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            if results['is_small_diameter']:
+                st.info("⚠️ Droof ≤ 6m: Usando 1 compartimento inundado")
+            
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.metric("Criterion 1 Freeboard", f"{results['Hflot_c1']:.3f} m")
+            with col_c2:
+                st.metric("Criterion 2 Freeboard", f"{results['Hflot_c2']:.3f} m")
+            
+            if results['passes_c1'] and results['passes_c2']:
+                st.markdown('<div class="pass">✅ FLOTATION REQUIREMENTS SATISFIED</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f"""
-                    <div style="background:#edf2f7; padding:15px; border-radius:8px; margin-bottom:15px">
-                        <h3 style="margin:0">🏗️ TOTAL WEIGHT</h3>
-                        <h2 style="color:#2980b9; margin:0">{results['w_roof_kg']:,.0f} kg ({results['w_roof_kN']:.1f} kN)</h2>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                with st.expander("⚙️ Weight Breakdown", expanded=True):
-                    st.markdown(f"""
-                        <div class="result-item"><span class="result-label">WRingTop:</span> <span class="result-value">{results['w_ring_top']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WRingBottom:</span> <span class="result-value">{results['w_ring_bottom']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WRext:</span> <span class="result-value">{results['w_rext']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WRint:</span> <span class="result-value">{results['w_rint']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WCompartment ({results['final_pontoons']}):</span> <span class="result-value">{results['final_compartments']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WDeck:</span> <span class="result-value">{results['w_deck']:,.1f} kg</span></div>
-                        <div class="result-item"><span class="result-label">WColumns:</span> <span class="result-value">{results['w_columns_pontoon'] + results['w_columns_deck']:,.1f} kg</span></div>
-                    """, unsafe_allow_html=True)
-                
-                st.markdown(f"""
-                    <div class="result-box">
-                        <h4>📊 Columns: {results['final_pontoons']} pont + {results['n_columns_deck']} deck</h4>
-                        <h4>⚡ Assembly cap: {results['assembly_capacity']} kg ({results['assembly_capacity_kN']:.1f} kN)</h4>
-                        <h4>📌 {results['source']}</h4>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-                if results['is_small_diameter']:
-                    st.info("⚠️ Droof ≤ 6m: Usando 1 compartimento inundado")
-                
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    st.metric("Criterion 1 Freeboard", f"{results['Hflot_c1']:.3f} m")
-                with col_c2:
-                    st.metric("Criterion 2 Freeboard", f"{results['Hflot_c2']:.3f} m")
-                
-                if results['passes_c1'] and results['passes_c2']:
-                    st.markdown('<div class="pass">✅ FLOTATION REQUIREMENTS SATISFIED</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown('<div class="fail">❌ FLOTATION REQUIREMENTS NOT SATISFIED</div>', unsafe_allow_html=True)
-                
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    export_to_excel(results)
-                with col_e2:
-                    export_to_pdf(results)
+                st.markdown('<div class="fail">❌ FLOTATION REQUIREMENTS NOT SATISFIED</div>', unsafe_allow_html=True)
+            
+            col_e1, col_e2 = st.columns(2)
+            with col_e1:
+                export_to_excel(results)
+            with col_e2:
+                export_to_pdf(results)
 
 if __name__ == "__main__":
     main()
